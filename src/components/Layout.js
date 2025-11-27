@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import soundManager from '../utils/soundManager';
 import themeManager from '../utils/themeManager';
 import AdBanner from './AdBanner';
+import GoogleAd, { AdSlots } from './GoogleAd';
 import './Layout.css';
 
 function Layout({ children, user, notifications = [], onLogout, isAdmin = false }) {
@@ -201,9 +202,20 @@ function Layout({ children, user, notifications = [], onLogout, isAdmin = false 
         )}
 
         <main className="main-content">
+          {/* Google AdSense - Top Banner */}
+          <GoogleAd slot={AdSlots.HEADER_BANNER} format="horizontal" />
+          
+          {/* Custom Ad Banner */}
           <AdBanner size="banner" position="top" dismissible={true} />
+          
           {children}
+          
+          {/* Custom Ad Banner */}
           <AdBanner size="banner" position="bottom" dismissible={false} />
+          
+          {/* Google AdSense - Footer Banner */}
+          <GoogleAd slot={AdSlots.FOOTER} format="horizontal" />
+          
           <footer className="footer desktop-only">
             <p>&copy; 2024 Cipro. All rights reserved.</p>
             <div className="footer-links">

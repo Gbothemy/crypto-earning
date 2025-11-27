@@ -5,6 +5,7 @@ import PuzzleGame from '../games/PuzzleGame';
 import SpinWheelGame from '../games/SpinWheelGame';
 import MemoryGame from '../games/MemoryGame';
 import NativeAd from '../components/NativeAd';
+import GoogleAd, { AdSlots } from '../components/GoogleAd';
 import './GamePage.css';
 
 function GamePage({ user, updateUser, addNotification }) {
@@ -218,6 +219,9 @@ function GamePage({ user, updateUser, addNotification }) {
           );
         }) : <div style={{padding: '40px', textAlign: 'center', color: '#999'}}>Loading mining modes...</div>}
       </div>
+
+      {/* Google AdSense - In-Article */}
+      <GoogleAd slot={AdSlots.IN_ARTICLE} format="fluid" />
 
       {/* Native Ad between content */}
       <NativeAd style="card" />
