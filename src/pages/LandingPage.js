@@ -1,9 +1,49 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../db/supabase';
 import './LandingPage.css';
 
 function LandingPage() {
   const navigate = useNavigate();
+  const [stats, setStats] = useState([
+    { value: '0', label: 'Active Players' },
+    { value: '$0', label: 'Rewards Paid' },
+    { value: '0', label: 'Tasks Completed' },
+    { value: '4.9/5', label: 'User Rating' }
+  ]);
+
+  useEffect(() => {
+    loadRealStats();
+  }, []);
+
+  const loadRealStats = async () => {
+    try {
+      // Get all users
+      const users = await db.getAllUsers();
+      const activeUsers = users.length;
+
+      // Calculate total rewards paid (sum of all user balances in USD)
+      const totalRewards = users.reduce((sum, user) => {
+        const solValue = (user.balance?.sol || 0) * 100; // SOL ~$100
+        const ethValue = (user.balance?.eth || 0) * 2000; // ETH ~$2000
+        const usdtValue = (user.balance?.usdt || 0); // USDT $1
+        const usdcValue = (user.balance?.usdc || 0); // USDC $1
+        return sum + solValue + ethValue + usdtValue + usdcValue;
+      }, 0);
+
+      // Calculate total tasks completed
+      const totalTasks = users.reduce((sum, user) => sum + (user.completedTasks || 0), 0);
+
+      setStats([
+        { value: `${activeUsers.toLocaleString()}+`, label: 'Active Players' },
+        { value: `$${Math.floor(totalRewards).toLocaleString()}+`, label: 'Rewards Paid' },
+        { value: `${totalTasks.toLocaleString()}+`, label: 'Tasks Completed' },
+        { value: '4.9/5', label: 'User Rating' }
+      ]);
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
 
   const features = [
     {
@@ -14,7 +54,7 @@ function LandingPage() {
     {
       icon: '💰',
       title: 'Daily Airdrops',
-      description: 'Claim free TON, CATI, and USDT every 24 hours'
+      description: 'Claim free SOL, ETH, USDT, and USDC every 24 hours'
     },
     {
       icon: '👥',
@@ -38,17 +78,11 @@ function LandingPage() {
     }
   ];
 
-  const stats = [
-    { value: '10K+', label: 'Active Players' },
-    { value: '$500K+', label: 'Rewards Paid' },
-    { value: '50K+', label: 'Tasks Completed' },
-    { value: '4.9/5', label: 'User Rating' }
-  ];
-
   const cryptos = [
-    { name: 'TON', icon: '💎', color: '#0088cc' },
-    { name: 'CATI', icon: '🐱', color: '#FF6B6B' },
-    { name: 'USDT', icon: '💵', color: '#26A17B' }
+    { name: 'SOL', icon: '◎', color: '#14F195' },
+    { name: 'ETH', icon: 'Ξ', color: '#627EEA' },
+    { name: 'USDT', icon: '💵', color: '#26A17B' },
+    { name: 'USDC', icon: '💵', color: '#2775CA' }
   ];
 
   return (

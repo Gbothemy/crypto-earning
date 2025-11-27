@@ -201,9 +201,9 @@ function Layout({ children, user, notifications = [], onLogout, isAdmin = false 
         )}
 
         <main className="main-content">
-          <AdBanner size="banner" position="top" />
+          <AdBanner size="banner" position="top" dismissible={true} />
           {children}
-          <AdBanner size="banner" position="bottom" />
+          <AdBanner size="banner" position="bottom" dismissible={false} />
           <footer className="footer desktop-only">
             <p>&copy; 2024 Cipro. All rights reserved.</p>
             <div className="footer-links">
