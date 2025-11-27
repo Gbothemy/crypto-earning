@@ -81,16 +81,23 @@ export const db = {
 
   async updateUser(user_id, updates) {
     try {
+      const updateData = {
+        points: updates.points,
+        vip_level: updates.vipLevel,
+        exp: updates.exp,
+        completed_tasks: updates.completedTasks,
+        day_streak: updates.dayStreak,
+        last_claim: updates.lastClaim,
+      };
+
+      // Add optional profile fields if provided
+      if (updates.username !== undefined) updateData.username = updates.username;
+      if (updates.email !== undefined) updateData.email = updates.email;
+      if (updates.avatar !== undefined) updateData.avatar = updates.avatar;
+
       const { data, error } = await supabase
         .from("users")
-        .update({
-          points: updates.points,
-          vip_level: updates.vipLevel,
-          exp: updates.exp,
-          completed_tasks: updates.completedTasks,
-          day_streak: updates.dayStreak,
-          last_claim: updates.lastClaim,
-        })
+        .update(updateData)
         .eq("user_id", user_id)
         .select()
         .single();

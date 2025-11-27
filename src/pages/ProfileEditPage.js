@@ -1,7 +1,6 @@
-'use client';
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../db/supabase';
 import ShareModal from '../components/ShareModal';
 import './ProfileEditPage.css';
 
@@ -57,29 +56,47 @@ function ProfileEditPage({ user, updateUser, addNotification }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) return;
 
-    // Update user profile
-    updateUser({
-      username: formData.username,
-      email: formData.email,
-      avatar: formData.avatar
-    });
+    try {
+      // Update user profile in database (including username, email, avatar)
+      await db.updateUser(user.userId, {
+        username: formData.username,
+        email: formData.email,
+        avatar: formData.avatar,
+        points: user.points,
+        vipLevel: user.vipLevel,
+        exp: user.exp,
+        completedTasks: user.completedTasks,
+        dayStreak: user.dayStreak,
+        lastClaim: user.lastClaim
+      });
 
-    // Update auth user in localStorage
-    const authUser = JSON.parse(localStorage.getItem('authUser'));
-    if (authUser) {
-      authUser.username = formData.username;
-      authUser.email = formData.email;
-      authUser.avatar = formData.avatar;
-      localStorage.setItem('authUser', JSON.stringify(authUser));
+      // Update local state
+      updateUser({
+        username: formData.username,
+        email: formData.email,
+        avatar: formData.avatar
+      });
+
+      // Update auth user in localStorage
+      const authUser = JSON.parse(localStorage.getItem('authUser'));
+      if (authUser) {
+        authUser.username = formData.username;
+        authUser.email = formData.email;
+        authUser.avatar = formData.avatar;
+        localStorage.setItem('authUser', JSON.stringify(authUser));
+      }
+
+      addNotification('Profile updated successfully!', 'success');
+      navigate('/benefit');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      addNotification('Failed to update profile. Please try again.', 'error');
     }
-
-    addNotification('Profile updated successfully!', 'success');
-    navigate('/benefit');
   };
 
   const handleCancel = () => {

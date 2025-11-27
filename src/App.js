@@ -16,6 +16,13 @@ const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage'));
 const ProfileEditPage = lazy(() => import('./pages/ProfileEditPage'));
 const ConversionPage = lazy(() => import('./pages/ConversionPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
+const FAQPage = lazy(() => import('./pages/FAQPage'));
+const DailyRewardsPage = lazy(() => import('./pages/DailyRewardsPage'));
+const AchievementsPage = lazy(() => import('./pages/AchievementsPage'));
+const VIPTiersPage = lazy(() => import('./pages/VIPTiersPage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const TasksPage = lazy(() => import('./pages/TasksPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -80,26 +87,8 @@ function App() {
     }
   };
 
-  // Save user data to Supabase whenever it changes
-  useEffect(() => {
-    if (user.userId && isAuthenticated) {
-      const saveUserToDatabase = async () => {
-        try {
-          await db.updateUser(user.userId, {
-            points: user.points,
-            vipLevel: user.vipLevel,
-            exp: user.exp,
-            completedTasks: user.completedTasks,
-            dayStreak: user.dayStreak,
-            lastClaim: user.lastClaim
-          });
-        } catch (error) {
-          console.error('Error saving user to database:', error);
-        }
-      };
-      saveUserToDatabase();
-    }
-  }, [user, isAuthenticated]);
+  // Note: User data is saved to database by individual pages when actions occur
+  // This prevents excessive database writes on every state change
 
   const addNotification = (message, type = 'success') => {
     const id = Date.now();
@@ -172,8 +161,17 @@ function App() {
             <Route path="/admin/login" element={<AdminLoginPage onLogin={handleLogin} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+        ) : user.isAdmin ? (
+          // Admin Layout - Only Admin Panel
+          <Layout user={user} notifications={notifications} onLogout={handleLogout} isAdmin={true}>
+            <Routes>
+              <Route path="/admin" element={<AdminPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
+              <Route path="*" element={<Navigate to="/admin" replace />} />
+            </Routes>
+          </Layout>
         ) : (
-          <Layout user={user} notifications={notifications} onLogout={handleLogout}>
+          // User Layout - Full Dashboard
+          <Layout user={user} notifications={notifications} onLogout={handleLogout} isAdmin={false}>
             <Routes>
               <Route path="/" element={<GamePage user={user} updateUser={updateUser} addNotification={addNotification} />} />
               <Route path="/game" element={<GamePage user={user} updateUser={updateUser} addNotification={addNotification} />} />
@@ -183,7 +181,13 @@ function App() {
               <Route path="/leaderboard" element={<LeaderboardPage user={user} />} />
               <Route path="/profile/edit" element={<ProfileEditPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
               <Route path="/conversion" element={<ConversionPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
-              <Route path="/admin" element={<AdminPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
+              <Route path="/faq" element={<FAQPage />} />
+              <Route path="/daily-rewards" element={<DailyRewardsPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
+              <Route path="/achievements" element={<AchievementsPage user={user} addNotification={addNotification} />} />
+              <Route path="/vip-tiers" element={<VIPTiersPage user={user} />} />
+              <Route path="/notifications" element={<NotificationsPage user={user} addNotification={addNotification} />} />
+              <Route path="/tasks" element={<TasksPage user={user} updateUser={updateUser} addNotification={addNotification} />} />
+              <Route path="/profile" element={<ProfilePage user={user} updateUser={updateUser} addNotification={addNotification} onLogout={handleLogout} />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Layout>

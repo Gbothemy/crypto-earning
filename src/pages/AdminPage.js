@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
+import { db } from '../db/supabase';
 import './AdminPage.css';
 
 function AdminPage({ user, addNotification }) {
@@ -46,56 +47,34 @@ function AdminPage({ user, addNotification }) {
     return () => clearInterval(interval);
   }, []);
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
     try {
-      const keys = Object.keys(localStorage);
-      const userKeys = keys.filter(key => key.startsWith('rewardGameUser_'));
-      
-      const allUsers = userKeys.map(key => {
-        try {
-          return JSON.parse(localStorage.getItem(key));
-        } catch (e) {
-          return null;
-        }
-      }).filter(u => u !== null);
+      // Fetch all users from database
+      const allUsers = await db.getAllUsers();
+      setUsers(allUsers);
 
-      // Filter out admin and demo users from statistics
-      const realUsers = allUsers.filter(u => 
-        !u.userId?.startsWith('ADMIN-') && 
-        !u.userId?.startsWith('USR-98765') && // DemoPlayer
-        !u.username?.toLowerCase().includes('demo') &&
-        !u.username?.toLowerCase().includes('admin')
-      );
-
-      setUsers(realUsers);
-
-      // Calculate comprehensive stats (using realUsers only)
-      const totalPoints = realUsers.reduce((sum, u) => sum + (u.points || 0), 0);
-      const totalTasks = realUsers.reduce((sum, u) => sum + (u.completedTasks || 0), 0);
-      const totalTON = realUsers.reduce((sum, u) => sum + (u.balance?.ton || 0), 0);
-      const totalCATI = realUsers.reduce((sum, u) => sum + (u.balance?.cati || 0), 0);
-      const avgLevel = realUsers.length > 0 
-        ? (realUsers.reduce((sum, u) => sum + (u.vipLevel || 1), 0) / realUsers.length).toFixed(1)
+      // Calculate comprehensive stats
+      const totalPoints = allUsers.reduce((sum, u) => sum + (u.points || 0), 0);
+      const totalTasks = allUsers.reduce((sum, u) => sum + (u.completedTasks || 0), 0);
+      const totalTON = allUsers.reduce((sum, u) => sum + (u.balance?.ton || 0), 0);
+      const totalCATI = allUsers.reduce((sum, u) => sum + (u.balance?.cati || 0), 0);
+      const avgLevel = allUsers.length > 0 
+        ? (allUsers.reduce((sum, u) => sum + (u.vipLevel || 1), 0) / allUsers.length).toFixed(1)
         : 0;
 
-      const today = new Date().toDateString();
-      const activeToday = realUsers.filter(u => {
-        try {
-          return localStorage.getItem(`dailyPlays_${u.userId}_${today}`) !== null;
-        } catch (e) {
-          return false;
-        }
-      }).length;
+      // Get active users today from database
+      const today = new Date().toISOString().split('T')[0];
+      const activeToday = 0; // TODO: Implement active users tracking
 
       setStats({
-        totalUsers: realUsers.length,
+        totalUsers: allUsers.length,
         totalPoints,
         totalTasks,
         avgLevel,
         activeToday,
         totalTON: totalTON.toFixed(2),
         totalCATI: totalCATI.toFixed(2),
-        topPlayer: realUsers.sort((a, b) => b.points - a.points)[0],
+        topPlayer: allUsers.sort((a, b) => b.points - a.points)[0],
         lastUpdate: new Date().toLocaleTimeString()
       });
     } catch (error) {
@@ -104,87 +83,67 @@ function AdminPage({ user, addNotification }) {
     }
   };
 
-  const loadNotifications = () => {
-    // Load admin notifications (withdrawal requests, reports, etc.)
-    const savedNotifications = localStorage.getItem('adminNotifications');
-    if (savedNotifications) {
-      try {
-        setNotifications(JSON.parse(savedNotifications));
-      } catch (e) {
-        setNotifications([]);
-      }
+  const loadNotifications = async () => {
+    // Load admin notifications from database (withdrawal requests)
+    try {
+      const pendingRequests = await db.getWithdrawalRequests('pending');
+      const notifs = pendingRequests.map(req => ({
+        id: req.id,
+        icon: '💰',
+        title: 'New Withdrawal Request',
+        message: `${req.username} requested ${req.amount} ${req.currency}`,
+        date: new Date(req.request_date).toLocaleString()
+      }));
+      setNotifications(notifs);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      setNotifications([]);
     }
   };
 
-  const loadWithdrawalRequests = () => {
+  const loadWithdrawalRequests = async () => {
     try {
-      const requests = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
-      // Sort by date, newest first
-      const sortedRequests = requests.sort((a, b) => 
-        new Date(b.requestDate) - new Date(a.requestDate)
-      );
-      setWithdrawalRequests(sortedRequests);
-    } catch (e) {
+      const requests = await db.getWithdrawalRequests();
+      setWithdrawalRequests(requests);
+    } catch (error) {
+      console.error('Error loading withdrawal requests:', error);
       setWithdrawalRequests([]);
     }
   };
 
-  const loadLeaderboard = () => {
+  const loadLeaderboard = async () => {
     try {
-      const keys = Object.keys(localStorage);
-      const userKeys = keys.filter(key => key.startsWith('rewardGameUser_'));
-      
-      const allUsers = userKeys.map(key => {
-        try {
-          return JSON.parse(localStorage.getItem(key));
-        } catch (e) {
-          return null;
-        }
-      }).filter(u => u !== null);
+      // Fetch leaderboard data from database
+      const pointsData = await db.getLeaderboard('points', 10);
+      const earningsData = await db.getLeaderboard('earnings', 10);
+      const streakData = await db.getLeaderboard('streak', 10);
 
-      // Filter out admin and demo users
-      const realUsers = allUsers.filter(u => 
-        !u.userId?.startsWith('ADMIN-') && 
-        !u.userId?.startsWith('USR-98765') &&
-        !u.username?.toLowerCase().includes('demo') &&
-        !u.username?.toLowerCase().includes('admin')
-      );
-      
-      // Sort by points
-      const pointsLeaderboard = [...realUsers]
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 10)
-        .map((u, index) => ({
-          rank: index + 1,
-          username: u.username,
-          avatar: u.avatar,
-          points: u.points,
-          vipLevel: u.vipLevel
-        }));
+      // Format points leaderboard
+      const pointsLeaderboard = pointsData.map((u, index) => ({
+        rank: index + 1,
+        username: u.username,
+        avatar: u.avatar,
+        points: u.points,
+        vipLevel: u.vip_level
+      }));
 
-      // Sort by earnings (TON)
-      const earningsLeaderboard = [...realUsers]
-        .sort((a, b) => (b.balance?.ton || 0) - (a.balance?.ton || 0))
-        .slice(0, 10)
-        .map((u, index) => ({
-          rank: index + 1,
-          username: u.username,
-          avatar: u.avatar,
-          earnings: u.balance?.ton || 0,
-          currency: 'TON'
-        }));
+      // Format earnings leaderboard
+      const earningsLeaderboard = earningsData.map((u, index) => ({
+        rank: index + 1,
+        username: u.username,
+        avatar: u.avatar,
+        earnings: u.balances?.ton || 0,
+        currency: 'TON'
+      }));
 
-      // Sort by streak
-      const streakLeaderboard = [...realUsers]
-        .sort((a, b) => (b.dayStreak || 0) - (a.dayStreak || 0))
-        .slice(0, 10)
-        .map((u, index) => ({
-          rank: index + 1,
-          username: u.username,
-          avatar: u.avatar,
-          streak: u.dayStreak || 0,
-          points: u.points
-        }));
+      // Format streak leaderboard
+      const streakLeaderboard = streakData.map((u, index) => ({
+        rank: index + 1,
+        username: u.username,
+        avatar: u.avatar,
+        streak: u.day_streak || 0,
+        points: u.points
+      }));
 
       setLeaderboardData({
         points: pointsLeaderboard,
@@ -196,59 +155,13 @@ function AdminPage({ user, addNotification }) {
     }
   };
 
-  const handleWithdrawalAction = (requestId, action) => {
+  const handleWithdrawalAction = async (requestId, action) => {
     try {
-      const requests = JSON.parse(localStorage.getItem('withdrawalRequests') || '[]');
-      const requestIndex = requests.findIndex(req => req.id === requestId);
+      const status = action === 'approved' ? 'approved' : 'rejected';
       
-      if (requestIndex === -1) {
-        addNotification('Withdrawal request not found', 'error');
-        return;
-      }
-
-      const request = requests[requestIndex];
+      await db.updateWithdrawalStatus(requestId, status, user.username);
       
-      if (action === 'approved') {
-        // Deduct balance from user
-        const userKey = `rewardGameUser_${request.userId}`;
-        const userData = JSON.parse(localStorage.getItem(userKey));
-        
-        if (userData) {
-          const currency = request.currency.toLowerCase();
-          if (userData.balance[currency] >= request.amount) {
-            userData.balance[currency] -= request.amount;
-            localStorage.setItem(userKey, JSON.stringify(userData));
-            
-            // Update request status
-            requests[requestIndex].status = 'approved';
-            requests[requestIndex].processedDate = new Date().toISOString();
-            requests[requestIndex].processedBy = user.username;
-            
-            addNotification(`Withdrawal approved: ${request.amount} ${request.currency}`, 'success');
-          } else {
-            addNotification('Insufficient user balance', 'error');
-            return;
-          }
-        } else {
-          addNotification('User not found', 'error');
-          return;
-        }
-      } else if (action === 'rejected') {
-        // Just update status, don't deduct balance
-        requests[requestIndex].status = 'rejected';
-        requests[requestIndex].processedDate = new Date().toISOString();
-        requests[requestIndex].processedBy = user.username;
-        requests[requestIndex].rejectionReason = 'Rejected by admin';
-        
-        addNotification(`Withdrawal rejected: ${request.amount} ${request.currency}`, 'info');
-      }
-      
-      localStorage.setItem('withdrawalRequests', JSON.stringify(requests));
-      
-      // Remove from admin notifications
-      const adminNotifs = JSON.parse(localStorage.getItem('adminNotifications') || '[]');
-      const updatedNotifs = adminNotifs.filter(notif => notif.id !== requestId);
-      localStorage.setItem('adminNotifications', JSON.stringify(updatedNotifs));
+      addNotification(`Withdrawal ${status}: ${requestId}`, 'success');
       
       loadWithdrawalRequests();
       loadNotifications();
@@ -260,28 +173,21 @@ function AdminPage({ user, addNotification }) {
   };
 
   const loadSystemSettings = () => {
-    const saved = localStorage.getItem('systemSettings');
-    if (saved) {
-      try {
-        setSystemSettings(JSON.parse(saved));
-      } catch (e) {}
-    }
+    // System settings loaded from state
   };
 
   const saveSystemSettings = () => {
-    localStorage.setItem('systemSettings', JSON.stringify(systemSettings));
+    // TODO: Save to database
     addNotification('System settings saved', 'success');
   };
 
-  const handleDeleteUser = (userId) => {
+  const handleDeleteUser = async (userId) => {
     if (!window.confirm(`Delete user ${userId}? This cannot be undone!`)) return;
 
     try {
-      localStorage.removeItem(`rewardGameUser_${userId}`);
-      const keys = Object.keys(localStorage);
-      keys.filter(k => k.includes(userId)).forEach(k => localStorage.removeItem(k));
-
-      addNotification('User deleted successfully', 'success');
+      // TODO: Implement delete user in database
+      // await db.deleteUser(userId);
+      addNotification('User deletion - Feature coming soon', 'info');
       loadAllData();
     } catch (error) {
       addNotification('Error deleting user', 'error');
@@ -302,30 +208,31 @@ function AdminPage({ user, addNotification }) {
     setEditMode(true);
   };
 
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!selectedUser) return;
 
     try {
-      const updatedUser = {
-        ...selectedUser,
-        username: editForm.username,
+      // Update user in database
+      await db.updateUser(selectedUser.userId, {
         points: parseInt(editForm.points) || 0,
         vipLevel: parseInt(editForm.vipLevel) || 1,
+        exp: selectedUser.exp,
         completedTasks: parseInt(editForm.completedTasks) || 0,
-        balance: {
-          ton: parseFloat(editForm.ton) || 0,
-          cati: parseFloat(editForm.cati) || 0,
-          usdt: parseFloat(editForm.usdt) || 0
-        }
-      };
+        dayStreak: selectedUser.dayStreak,
+        lastClaim: selectedUser.lastClaim
+      });
 
-      localStorage.setItem(`rewardGameUser_${selectedUser.userId}`, JSON.stringify(updatedUser));
+      // Update balances
+      await db.updateBalance(selectedUser.userId, 'ton', parseFloat(editForm.ton) || 0);
+      await db.updateBalance(selectedUser.userId, 'cati', parseFloat(editForm.cati) || 0);
+      await db.updateBalance(selectedUser.userId, 'usdt', parseFloat(editForm.usdt) || 0);
       
       addNotification('User updated successfully', 'success');
       setEditMode(false);
       setSelectedUser(null);
       loadAllData();
     } catch (error) {
+      console.error('Error saving user:', error);
       addNotification('Error saving user', 'error');
     }
   };

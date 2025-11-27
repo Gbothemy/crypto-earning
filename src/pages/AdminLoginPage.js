@@ -51,54 +51,79 @@ function AdminLoginPage({ onLogin }) {
     if (!validateForm()) return;
 
     setIsLoading(true);
+    setErrors({});
 
     try {
-      // Check if admin exists
-      const users = await db.getAllUsers();
-      const adminEmail = `${formData.username.toLowerCase()}@admin.com`;
-      let existingAdmin = users.find(u => u.email === adminEmail && u.isAdmin);
-      
-      let adminData;
-      
-      if (existingAdmin) {
-        // Existing admin
-        adminData = {
-          username: existingAdmin.username,
-          email: existingAdmin.email,
-          userId: existingAdmin.userId,
-          avatar: existingAdmin.avatar,
+      // Default admin credentials
+      const DEFAULT_ADMIN = {
+        username: 'admin',
+        password: 'Admin@123'
+      };
+
+      // Check credentials
+      if (formData.username.toLowerCase() === DEFAULT_ADMIN.username.toLowerCase() && 
+          formData.password === DEFAULT_ADMIN.password) {
+        
+        // Try to get admin from database, if fails create default admin data
+        let adminUser;
+        try {
+          adminUser = await db.getUser('ADMIN-DEFAULT-001');
+          
+          if (!adminUser) {
+            // Create default admin in database
+            adminUser = await db.createUser({
+              user_id: 'ADMIN-DEFAULT-001',
+              username: 'admin',
+              email: 'admin@cryptoearning.com',
+              avatar: '🛡️',
+              is_admin: true
+            });
+          }
+        } catch (dbError) {
+          console.error('Database error, using fallback admin:', dbError);
+          // Fallback admin data if database fails
+          adminUser = {
+            userId: 'ADMIN-DEFAULT-001',
+            username: 'admin',
+            email: 'admin@cryptoearning.com',
+            avatar: '🛡️',
+            isAdmin: true,
+            points: 0,
+            vipLevel: 99,
+            exp: 0,
+            maxExp: 1000,
+            giftPoints: 0,
+            completedTasks: 0,
+            dayStreak: 0,
+            balance: { ton: 0, cati: 0, usdt: 0 },
+            totalEarnings: { ton: 0, cati: 0, usdt: 0 }
+          };
+        }
+
+        const adminData = {
+          ...adminUser,
           isAuthenticated: true,
           isAdmin: true
         };
+
+        localStorage.setItem('authUser', JSON.stringify(adminData));
+        onLogin(adminData, navigate);
       } else {
-        // Create new admin
-        const userId = `ADMIN-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-        await db.createUser({
-          user_id: userId,
-          username: formData.username,
-          email: adminEmail,
-          avatar: '🛡️',
-          is_admin: true
-        });
-
-        adminData = {
-          username: formData.username,
-          email: adminEmail,
-          userId: userId,
-          avatar: '🛡️',
-          isAuthenticated: true,
-          isAdmin: true
-        };
+        setErrors({ general: 'Invalid admin credentials. Please try again.' });
       }
-
-      localStorage.setItem('authUser', JSON.stringify(adminData));
-      onLogin(adminData, navigate);
     } catch (error) {
       console.error('Admin login error:', error);
-      setErrors({ username: 'Authentication failed. Please try again.' });
+      setErrors({ general: 'Authentication failed. Please check your credentials.' });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleDefaultLogin = async () => {
+    setFormData({
+      username: 'admin',
+      password: 'Admin@123'
+    });
   };
 
   const handleBackToHome = () => {
@@ -115,6 +140,36 @@ function AdminLoginPage({ onLogin }) {
         </div>
 
         <form className="admin-login-form" onSubmit={handleSubmit}>
+          {errors.general && (
+            <div className="error-banner">
+              ⚠️ {errors.general}
+            </div>
+          )}
+
+          <div className="default-credentials">
+            <div className="credentials-header">
+              <span className="key-icon">🔑</span>
+              <strong>Default Admin Credentials</strong>
+            </div>
+            <div className="credentials-info">
+              <div className="credential-item">
+                <span className="label">Username:</span>
+                <code>admin</code>
+              </div>
+              <div className="credential-item">
+                <span className="label">Password:</span>
+                <code>Admin@123</code>
+              </div>
+            </div>
+            <button 
+              type="button" 
+              onClick={handleDefaultLogin}
+              className="use-default-btn"
+            >
+              Use Default Credentials
+            </button>
+          </div>
+
           <div className="form-group">
             <label htmlFor="username">
               <span className="label-icon">👤</span>
@@ -129,6 +184,7 @@ function AdminLoginPage({ onLogin }) {
               placeholder="Enter admin username"
               className={errors.username ? 'error' : ''}
               autoComplete="username"
+              disabled={isLoading}
             />
             {errors.username && <span className="error-message">{errors.username}</span>}
           </div>
@@ -147,6 +203,7 @@ function AdminLoginPage({ onLogin }) {
               placeholder="Enter admin password"
               className={errors.password ? 'error' : ''}
               autoComplete="current-password"
+              disabled={isLoading}
             />
             {errors.password && <span className="error-message">{errors.password}</span>}
           </div>

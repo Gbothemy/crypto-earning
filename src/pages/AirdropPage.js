@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { db } from '../db/supabase';
 import './AirdropPage.css';
 
 function AirdropPage({ user, updateUser, addNotification }) {
@@ -36,7 +37,7 @@ function AirdropPage({ user, updateUser, addNotification }) {
     }
   };
 
-  const handleClaim = () => {
+  const handleClaim = async () => {
     if (!canClaim || claimed) return;
 
     setClaimed(true);
@@ -48,7 +49,23 @@ function AirdropPage({ user, updateUser, addNotification }) {
       points: Math.floor(Math.random() * 500 + 200)
     };
 
-    setTimeout(() => {
+    try {
+      // Update balances in database
+      await db.updateBalance(user.userId, 'ton', user.balance.ton + rewards.ton);
+      await db.updateBalance(user.userId, 'cati', user.balance.cati + rewards.cati);
+      await db.updateBalance(user.userId, 'usdt', user.balance.usdt + rewards.usdt);
+      
+      // Update user data in database
+      await db.updateUser(user.userId, {
+        points: user.points + rewards.points,
+        vipLevel: user.vipLevel,
+        exp: user.exp,
+        completedTasks: user.completedTasks,
+        dayStreak: user.dayStreak + 1,
+        lastClaim: new Date().toISOString()
+      });
+
+      // Update local state
       updateUser({
         balance: {
           ton: user.balance.ton + rewards.ton,
@@ -63,7 +80,11 @@ function AirdropPage({ user, updateUser, addNotification }) {
       addNotification(`🎁 Claimed: ${rewards.ton} TON, ${rewards.cati} CATI, ${rewards.usdt} USDT, ${rewards.points} Points!`, 'success');
       setClaimed(false);
       setCanClaim(false);
-    }, 1500);
+    } catch (error) {
+      console.error('Error claiming airdrop:', error);
+      addNotification('Failed to claim airdrop. Please try again.', 'error');
+      setClaimed(false);
+    }
   };
 
   return (

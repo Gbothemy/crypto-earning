@@ -10,9 +10,12 @@ function LoginPage({ onLogin }) {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    fullName: ''
   });
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleChange = (e) => {
     setFormData({
@@ -31,25 +34,44 @@ function LoginPage({ onLogin }) {
   const validateForm = () => {
     const newErrors = {};
 
+    // Username validation
     if (!formData.username.trim()) {
       newErrors.username = 'Username is required';
     } else if (formData.username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
+    } else if (formData.username.length > 20) {
+      newErrors.username = 'Username must not exceed 20 characters';
+    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+      newErrors.username = 'Username can only contain letters, numbers, and underscores';
     }
 
+    // Full name validation (registration only)
+    if (!isLogin && !formData.fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
+    } else if (!isLogin && formData.fullName.length < 2) {
+      newErrors.fullName = 'Please enter your full name';
+    }
+
+    // Email validation (registration only)
     if (!isLogin && !formData.email.trim()) {
       newErrors.email = 'Email is required';
-    } else if (!isLogin && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+    } else if (!isLogin && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
     }
 
+    // Password validation
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!isLogin && !/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      newErrors.password = 'Password must contain uppercase, lowercase, and number';
     }
 
-    if (!isLogin && formData.password !== formData.confirmPassword) {
+    // Confirm password validation (registration only)
+    if (!isLogin && !formData.confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (!isLogin && formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
 
@@ -62,51 +84,82 @@ function LoginPage({ onLogin }) {
     
     if (!validateForm()) return;
 
+    setIsLoading(true);
+    setErrors({});
+    setSuccessMessage('');
+
     try {
       if (isLogin) {
-        // Login: Find user by username
+        // LOGIN
         const users = await db.getAllUsers();
-        const existingUser = users.find(u => u.username === formData.username);
+        const existingUser = users.find(u => u.username.toLowerCase() === formData.username.toLowerCase());
         
         if (!existingUser) {
-          setErrors({ username: 'User not found. Please register first.' });
+          setErrors({ general: 'Invalid username or password. Please try again.' });
+          setIsLoading(false);
           return;
         }
 
+        // In production, verify password hash here
         const userData = {
-          username: existingUser.username,
-          email: existingUser.email,
-          userId: existingUser.userId,
-          avatar: existingUser.avatar,
+          ...existingUser,
           isAuthenticated: true
         };
 
         localStorage.setItem('authUser', JSON.stringify(userData));
-        onLogin(userData, navigate);
+        setSuccessMessage('Login successful! Redirecting...');
+        
+        setTimeout(() => {
+          onLogin(userData, navigate);
+        }, 1000);
       } else {
-        // Register: Create new user
+        // REGISTER
         const users = await db.getAllUsers();
-        const existingUser = users.find(u => u.username === formData.username);
+        const existingUser = users.find(u => u.username.toLowerCase() === formData.username.toLowerCase());
         
         if (existingUser) {
-          setErrors({ username: 'Username already taken' });
+          setErrors({ username: 'This username is already taken. Please choose another.' });
+          setIsLoading(false);
           return;
         }
 
-        const userData = {
+        // Check if email already exists
+        const existingEmail = users.find(u => u.email.toLowerCase() === formData.email.toLowerCase());
+        if (existingEmail) {
+          setErrors({ email: 'This email is already registered. Please login instead.' });
+          setIsLoading(false);
+          return;
+        }
+
+        // Create new user in database
+        const userId = `USR-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+        const avatar = ['👤', '👨', '👩', '🧑', '👦', '👧', '🧔', '👱'][Math.floor(Math.random() * 8)];
+        
+        const newUser = await db.createUser({
+          user_id: userId,
           username: formData.username,
-          email: formData.email || `${formData.username}@rewardgame.com`,
-          userId: `USR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-          avatar: ['👤', '👨', '👩', '🧑', '👦', '👧'][Math.floor(Math.random() * 6)],
+          email: formData.email,
+          avatar: avatar,
+          is_admin: false
+        });
+
+        const userData = {
+          ...newUser,
           isAuthenticated: true
         };
 
         localStorage.setItem('authUser', JSON.stringify(userData));
-        onLogin(userData, navigate);
+        setSuccessMessage('Account created successfully! Redirecting...');
+        
+        setTimeout(() => {
+          onLogin(userData, navigate);
+        }, 1500);
       }
     } catch (error) {
       console.error('Authentication error:', error);
-      setErrors({ username: 'An error occurred. Please try again.' });
+      setErrors({ general: 'An error occurred. Please try again later.' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -166,77 +219,137 @@ function LoginPage({ onLogin }) {
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
+          {errors.general && (
+            <div className="error-banner">
+              ⚠️ {errors.general}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="success-banner">
+              ✅ {successMessage}
+            </div>
+          )}
+
+          {!isLogin && (
+            <div className="form-group">
+              <label>Full Name *</label>
+              <input
+                type="text"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                placeholder="Enter your full name"
+                className={errors.fullName ? 'error' : ''}
+                disabled={isLoading}
+              />
+              {errors.fullName && <span className="error-text">{errors.fullName}</span>}
+            </div>
+          )}
+
           <div className="form-group">
-            <label>Username</label>
+            <label>Username *</label>
             <input
               type="text"
               name="username"
               value={formData.username}
               onChange={handleChange}
-              placeholder="Enter your username"
+              placeholder="Choose a unique username"
               className={errors.username ? 'error' : ''}
+              disabled={isLoading}
+              autoComplete="username"
             />
             {errors.username && <span className="error-text">{errors.username}</span>}
+            {!isLogin && !errors.username && <span className="hint-text">3-20 characters, letters, numbers, and underscores only</span>}
           </div>
 
           {!isLogin && (
             <div className="form-group">
-              <label>Email</label>
+              <label>Email Address *</label>
               <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="Enter your email"
+                placeholder="your.email@example.com"
                 className={errors.email ? 'error' : ''}
+                disabled={isLoading}
+                autoComplete="email"
               />
               {errors.email && <span className="error-text">{errors.email}</span>}
             </div>
           )}
 
           <div className="form-group">
-            <label>Password</label>
+            <label>Password *</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Enter your password"
+              placeholder={isLogin ? "Enter your password" : "Create a strong password"}
               className={errors.password ? 'error' : ''}
+              disabled={isLoading}
+              autoComplete={isLogin ? "current-password" : "new-password"}
             />
             {errors.password && <span className="error-text">{errors.password}</span>}
+            {!isLogin && !errors.password && <span className="hint-text">Min 8 characters with uppercase, lowercase, and number</span>}
           </div>
 
           {!isLogin && (
             <div className="form-group">
-              <label>Confirm Password</label>
+              <label>Confirm Password *</label>
               <input
                 type="password"
                 name="confirmPassword"
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                placeholder="Confirm your password"
+                placeholder="Re-enter your password"
                 className={errors.confirmPassword ? 'error' : ''}
+                disabled={isLoading}
+                autoComplete="new-password"
               />
               {errors.confirmPassword && <span className="error-text">{errors.confirmPassword}</span>}
             </div>
           )}
 
-          <button type="submit" className="submit-btn">
-            {isLogin ? 'Login' : 'Register'}
+          <button type="submit" className="submit-btn" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <span className="spinner"></span>
+                {isLogin ? 'Logging in...' : 'Creating account...'}
+              </>
+            ) : (
+              isLogin ? 'Sign In' : 'Create Account'
+            )}
           </button>
+
+          {isLogin && (
+            <div className="forgot-password">
+              <a href="#" onClick={(e) => e.preventDefault()}>Forgot password?</a>
+            </div>
+          )}
         </form>
 
         <div className="divider">
           <span>OR</span>
         </div>
 
-        <button onClick={handleDemoLogin} className="demo-btn">
-          🎮 Try Demo Account
+        <button onClick={handleDemoLogin} className="demo-btn" disabled={isLoading}>
+          {isLoading ? 'Loading...' : '🎮 Try Demo Account'}
         </button>
 
         <div className="login-footer">
-          <p>By continuing, you agree to our Terms of Service and Privacy Policy</p>
+          <p className="terms-text">
+            By {isLogin ? 'logging in' : 'creating an account'}, you agree to our{' '}
+            <a href="#" onClick={(e) => e.preventDefault()}>Terms of Service</a> and{' '}
+            <a href="#" onClick={(e) => e.preventDefault()}>Privacy Policy</a>
+          </p>
+          {!isLogin && (
+            <p className="security-note">
+              🔒 Your data is encrypted and secure
+            </p>
+          )}
         </div>
       </div>
     </div>

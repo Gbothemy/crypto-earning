@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { db } from '../db/supabase';
 import './BenefitPage.css';
 
 function BenefitPage({ user, updateUser, addNotification, onLogout }) {
@@ -59,25 +60,46 @@ function BenefitPage({ user, updateUser, addNotification, onLogout }) {
     }
   ];
 
-  const handleClaimPack = (pack) => {
+  const handleClaimPack = async (pack) => {
     if (user.points < pack.points || claimedPacks.includes(pack.id)) return;
 
-    const newPoints = user.points - pack.points;
-    const newBalance = {
-      ton: user.balance.ton + pack.rewards.ton,
-      cati: user.balance.cati + pack.rewards.cati,
-      usdt: user.balance.usdt + pack.rewards.usdt
-    };
-    const newGiftPoints = user.giftPoints + pack.rewards.giftPoints;
+    try {
+      // Update points in database
+      await db.updateUser(user.userId, {
+        points: user.points - pack.points,
+        vipLevel: user.vipLevel,
+        exp: user.exp,
+        completedTasks: user.completedTasks,
+        dayStreak: user.dayStreak,
+        lastClaim: user.lastClaim
+      });
 
-    updateUser({
-      points: newPoints,
-      balance: newBalance,
-      giftPoints: newGiftPoints
-    });
+      // Update balances in database
+      await db.updateBalance(user.userId, 'ton', user.balance.ton + pack.rewards.ton);
+      await db.updateBalance(user.userId, 'cati', user.balance.cati + pack.rewards.cati);
+      await db.updateBalance(user.userId, 'usdt', user.balance.usdt + pack.rewards.usdt);
 
-    setClaimedPacks([...claimedPacks, pack.id]);
-    addNotification(`🎉 ${pack.name} claimed successfully!`, 'success');
+      // Update local state
+      const newPoints = user.points - pack.points;
+      const newBalance = {
+        ton: user.balance.ton + pack.rewards.ton,
+        cati: user.balance.cati + pack.rewards.cati,
+        usdt: user.balance.usdt + pack.rewards.usdt
+      };
+      const newGiftPoints = user.giftPoints + pack.rewards.giftPoints;
+
+      updateUser({
+        points: newPoints,
+        balance: newBalance,
+        giftPoints: newGiftPoints
+      });
+
+      setClaimedPacks([...claimedPacks, pack.id]);
+      addNotification(`🎉 ${pack.name} claimed successfully!`, 'success');
+    } catch (error) {
+      console.error('Error claiming pack:', error);
+      addNotification('Failed to claim pack. Please try again.', 'error');
+    }
   };
 
   return (

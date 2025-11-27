@@ -1,6 +1,5 @@
-'use client';
-
 import React, { useState } from 'react';
+import { db } from '../db/supabase';
 import './ConversionPage.css';
 
 function ConversionPage({ user, updateUser, addNotification }) {
@@ -12,7 +11,7 @@ function ConversionPage({ user, updateUser, addNotification }) {
   const CONVERSION_RATE = 10000; // 1 CATI = 10,000 points
   const MIN_WITHDRAW = 100; // Minimum 100 CATI to withdraw
 
-  const handleConvert = (e) => {
+  const handleConvert = async (e) => {
     e.preventDefault();
     
     const points = parseFloat(convertAmount);
@@ -29,19 +28,38 @@ function ConversionPage({ user, updateUser, addNotification }) {
     
     const catiAmount = points / CONVERSION_RATE;
     
-    updateUser({
-      points: user.points - points,
-      balance: {
-        ...user.balance,
-        cati: user.balance.cati + catiAmount
-      }
-    });
-    
-    addNotification(`Successfully converted ${points.toLocaleString()} points to ${catiAmount.toFixed(4)} CATI!`, 'success');
-    setConvertAmount('');
+    try {
+      // Update points in database
+      await db.updateUser(user.userId, {
+        points: user.points - points,
+        vipLevel: user.vipLevel,
+        exp: user.exp,
+        completedTasks: user.completedTasks,
+        dayStreak: user.dayStreak,
+        lastClaim: user.lastClaim
+      });
+      
+      // Update CATI balance in database
+      await db.updateBalance(user.userId, 'cati', user.balance.cati + catiAmount);
+      
+      // Update local state
+      updateUser({
+        points: user.points - points,
+        balance: {
+          ...user.balance,
+          cati: user.balance.cati + catiAmount
+        }
+      });
+      
+      addNotification(`Successfully converted ${points.toLocaleString()} points to ${catiAmount.toFixed(4)} CATI!`, 'success');
+      setConvertAmount('');
+    } catch (error) {
+      console.error('Error converting points:', error);
+      addNotification('Failed to convert points. Please try again.', 'error');
+    }
   };
 
-  const handleWithdraw = (e) => {
+  const handleWithdraw = async (e) => {
     e.preventDefault();
     
     const amount = parseFloat(withdrawAmount);
@@ -66,17 +84,36 @@ function ConversionPage({ user, updateUser, addNotification }) {
       return;
     }
     
-    // Simulate withdrawal (in production, this would call an API)
-    updateUser({
-      balance: {
-        ...user.balance,
-        cati: user.balance.cati - amount
-      }
-    });
-    
-    addNotification(`Withdrawal request submitted! ${amount} CATI will be sent to your wallet within 24 hours.`, 'success');
-    setWithdrawAmount('');
-    setWithdrawAddress('');
+    try {
+      // Create withdrawal request in database
+      const requestId = `WD-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      await db.createWithdrawalRequest({
+        id: requestId,
+        user_id: user.userId,
+        username: user.username,
+        currency: 'cati',
+        amount: amount,
+        wallet_address: withdrawAddress
+      });
+      
+      // Update CATI balance in database
+      await db.updateBalance(user.userId, 'cati', user.balance.cati - amount);
+      
+      // Update local state
+      updateUser({
+        balance: {
+          ...user.balance,
+          cati: user.balance.cati - amount
+        }
+      });
+      
+      addNotification(`Withdrawal request submitted! ${amount} CATI will be sent to your wallet within 24 hours.`, 'success');
+      setWithdrawAmount('');
+      setWithdrawAddress('');
+    } catch (error) {
+      console.error('Error creating withdrawal request:', error);
+      addNotification('Failed to submit withdrawal request. Please try again.', 'error');
+    }
   };
 
   const calculateCati = (points) => {

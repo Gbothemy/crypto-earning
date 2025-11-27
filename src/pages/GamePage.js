@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { db } from '../db/supabase';
 import Achievements from '../components/Achievements';
 import PuzzleGame from '../games/PuzzleGame';
 import SpinWheelGame from '../games/SpinWheelGame';
@@ -80,7 +81,7 @@ function GamePage({ user, updateUser, addNotification }) {
     }, mode.duration);
   };
 
-  const completeMining = (mode, earnedPoints) => {
+  const completeMining = async (mode, earnedPoints) => {
     const newPoints = user.points + earnedPoints;
     const newExp = user.exp + mode.expReward;
     const newCompletedTasks = user.completedTasks + 1;
@@ -94,17 +95,38 @@ function GamePage({ user, updateUser, addNotification }) {
       addNotification(`🎉 Level Up! You are now VIP Level ${newLevel}!`, 'success');
     }
 
-    updateUser({
-      points: newPoints,
-      exp: finalExp,
-      vipLevel: newLevel,
-      completedTasks: newCompletedTasks
-    });
+    try {
+      // Update user in database
+      await db.updateUser(user.userId, {
+        points: newPoints,
+        vipLevel: newLevel,
+        exp: finalExp,
+        completedTasks: newCompletedTasks,
+        dayStreak: user.dayStreak,
+        lastClaim: user.lastClaim
+      });
 
-    setMining({ ...mining, [mode.id]: false });
-    const newCooldowns = { ...cooldowns, [mode.id]: Date.now() + mode.cooldown };
-    setCooldowns(newCooldowns);
-    addNotification(`+${earnedPoints} points earned!`, 'success');
+      // Record game play
+      if (mode.gameType) {
+        await db.recordGamePlay(user.userId, mode.gameType);
+      }
+
+      // Update local state
+      updateUser({
+        points: newPoints,
+        exp: finalExp,
+        vipLevel: newLevel,
+        completedTasks: newCompletedTasks
+      });
+
+      setMining({ ...mining, [mode.id]: false });
+      const newCooldowns = { ...cooldowns, [mode.id]: Date.now() + mode.cooldown };
+      setCooldowns(newCooldowns);
+      addNotification(`+${earnedPoints} points earned!`, 'success');
+    } catch (error) {
+      console.error('Error completing mining:', error);
+      addNotification('Error saving progress. Please try again.', 'error');
+    }
   };
 
   const handleGameComplete = (won, points) => {
