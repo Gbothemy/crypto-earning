@@ -10,93 +10,97 @@ function NotificationsPage({ user, addNotification }) {
     loadNotifications();
   }, [user.userId]);
 
-  const loadNotifications = () => {
-    // Mock notifications - In production, fetch from database
-    const mockNotifications = [
-      {
-        id: 1,
-        type: 'success',
-        icon: '✅',
-        title: 'Withdrawal Approved',
-        message: 'Your withdrawal of 100 CATI has been approved and processed.',
-        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        read: false
-      },
-      {
-        id: 2,
-        type: 'achievement',
-        icon: '🏆',
-        title: 'Achievement Unlocked!',
-        message: 'You unlocked "Week Warrior" - 7 day login streak!',
-        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
-        read: false
-      },
-      {
-        id: 3,
-        type: 'level',
-        icon: '⭐',
-        title: 'Level Up!',
-        message: 'Congratulations! You reached VIP Level 5.',
-        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        read: true
-      },
-      {
-        id: 4,
-        type: 'referral',
-        icon: '👥',
-        title: 'Referral Earnings',
-        message: 'You earned 500 points from your referral Alice!',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        read: true
-      },
-      {
-        id: 5,
-        type: 'event',
-        icon: '🎉',
-        title: 'Special Event',
-        message: 'Weekend Bonus Event: Earn 2x points on all games!',
-        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-        read: true
-      },
-      {
-        id: 6,
-        type: 'info',
-        icon: 'ℹ️',
-        title: 'New Feature',
-        message: 'Check out the new VIP Tiers system with exclusive benefits!',
-        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        read: true
-      }
-    ];
+  const loadNotifications = async () => {
+    try {
+      const data = await db.getNotifications(user.userId);
+      
+      // Format notifications for display
+      const formattedNotifications = data.map(notif => ({
+        id: notif.id,
+        type: notif.notification_type,
+        icon: notif.icon || getDefaultIcon(notif.notification_type),
+        title: notif.title,
+        message: notif.message,
+        timestamp: new Date(notif.created_at),
+        read: notif.is_read
+      }));
 
-    setNotifications(mockNotifications);
+      setNotifications(formattedNotifications);
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      addNotification('Failed to load notifications', 'error');
+    }
   };
 
-  const markAsRead = (id) => {
-    setNotifications(prev =>
-      prev.map(notif =>
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
-    addNotification('Marked as read', 'success');
+  const getDefaultIcon = (type) => {
+    const icons = {
+      success: '✅',
+      achievement: '🏆',
+      level: '⭐',
+      referral: '👥',
+      event: '🎉',
+      info: 'ℹ️',
+      task: '📋',
+      withdrawal: '💰'
+    };
+    return icons[type] || 'ℹ️';
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev =>
-      prev.map(notif => ({ ...notif, read: true }))
-    );
-    addNotification('All notifications marked as read', 'success');
+  const markAsRead = async (id) => {
+    try {
+      await db.markNotificationAsRead(id);
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === id ? { ...notif, read: true } : notif
+        )
+      );
+      addNotification('Marked as read', 'success');
+    } catch (error) {
+      console.error('Error marking as read:', error);
+      addNotification('Failed to mark as read', 'error');
+    }
   };
 
-  const deleteNotification = (id) => {
-    setNotifications(prev => prev.filter(notif => notif.id !== id));
-    addNotification('Notification deleted', 'info');
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter(n => !n.read);
+      await Promise.all(
+        unreadNotifications.map(notif => db.markNotificationAsRead(notif.id))
+      );
+      
+      setNotifications(prev =>
+        prev.map(notif => ({ ...notif, read: true }))
+      );
+      addNotification('All notifications marked as read', 'success');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      addNotification('Failed to mark all as read', 'error');
+    }
   };
 
-  const clearAll = () => {
+  const deleteNotificationItem = async (id) => {
+    try {
+      await db.deleteNotification(id);
+      setNotifications(prev => prev.filter(notif => notif.id !== id));
+      addNotification('Notification deleted', 'info');
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      addNotification('Failed to delete notification', 'error');
+    }
+  };
+
+  const clearAll = async () => {
     if (window.confirm('Clear all notifications?')) {
-      setNotifications([]);
-      addNotification('All notifications cleared', 'info');
+      try {
+        await Promise.all(
+          notifications.map(notif => db.deleteNotification(notif.id))
+        );
+        setNotifications([]);
+        addNotification('All notifications cleared', 'info');
+      } catch (error) {
+        console.error('Error clearing notifications:', error);
+        addNotification('Failed to clear notifications', 'error');
+      }
     }
   };
 
@@ -224,7 +228,7 @@ function NotificationsPage({ user, addNotification }) {
                 )}
                 <button
                   className="action-icon-btn delete"
-                  onClick={() => deleteNotification(notif.id)}
+                  onClick={() => deleteNotificationItem(notif.id)}
                   title="Delete"
                 >
                   🗑️

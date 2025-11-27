@@ -362,6 +362,412 @@ export const db = {
     }
   },
 
+  // ==================== TASK OPERATIONS ====================
+
+  async getTasks(taskType = null) {
+    try {
+      let query = supabase
+        .from("tasks")
+        .select("*")
+        .eq("is_active", true);
+
+      if (taskType) {
+        query = query.eq("task_type", taskType);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting tasks:", error);
+      return [];
+    }
+  },
+
+  async getUserTasks(user_id, taskType = null) {
+    try {
+      let query = supabase
+        .from("user_tasks")
+        .select(`
+          *,
+          tasks (*)
+        `)
+        .eq("user_id", user_id);
+
+      if (taskType) {
+        query = query.eq("tasks.task_type", taskType);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting user tasks:", error);
+      return [];
+    }
+  },
+
+  async updateTaskProgress(user_id, task_id, progress) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      // Check if record exists
+      const { data: existing } = await supabase
+        .from("user_tasks")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("task_id", task_id)
+        .eq("reset_date", today)
+        .single();
+
+      if (existing) {
+        // Update existing
+        const { data, error } = await supabase
+          .from("user_tasks")
+          .update({ progress })
+          .eq("id", existing.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      } else {
+        // Create new
+        const { data, error } = await supabase
+          .from("user_tasks")
+          .insert([{ user_id, task_id, progress, reset_date: today }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data;
+      }
+    } catch (error) {
+      console.error("Error updating task progress:", error);
+      throw error;
+    }
+  },
+
+  async claimTask(user_id, task_id) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("user_tasks")
+        .update({
+          is_claimed: true,
+          claimed_at: new Date().toISOString(),
+        })
+        .eq("user_id", user_id)
+        .eq("task_id", task_id)
+        .eq("reset_date", today)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error claiming task:", error);
+      throw error;
+    }
+  },
+
+  // ==================== NOTIFICATION OPERATIONS ====================
+
+  async createNotification(user_id, notificationData) {
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .insert([
+          {
+            user_id,
+            notification_type: notificationData.type,
+            title: notificationData.title,
+            message: notificationData.message,
+            icon: notificationData.icon,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      throw error;
+    }
+  },
+
+  async getNotifications(user_id, isRead = null) {
+    try {
+      let query = supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", { ascending: false });
+
+      if (isRead !== null) {
+        query = query.eq("is_read", isRead);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting notifications:", error);
+      return [];
+    }
+  },
+
+  async markNotificationAsRead(id) {
+    try {
+      const { data, error } = await supabase
+        .from("notifications")
+        .update({ is_read: true })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error marking notification as read:", error);
+      throw error;
+    }
+  },
+
+  async deleteNotification(id) {
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error("Error deleting notification:", error);
+      throw error;
+    }
+  },
+
+  // ==================== ACHIEVEMENT OPERATIONS ====================
+
+  async getAchievements() {
+    try {
+      const { data, error } = await supabase
+        .from("achievements")
+        .select("*")
+        .eq("is_active", true);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting achievements:", error);
+      return [];
+    }
+  },
+
+  async getUserAchievements(user_id) {
+    try {
+      const { data, error } = await supabase
+        .from("user_achievements")
+        .select(`
+          *,
+          achievements (*)
+        `)
+        .eq("user_id", user_id);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting user achievements:", error);
+      return [];
+    }
+  },
+
+  async unlockAchievement(user_id, achievement_id) {
+    try {
+      const { data, error } = await supabase
+        .from("user_achievements")
+        .insert([{ user_id, achievement_id }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error unlocking achievement:", error);
+      throw error;
+    }
+  },
+
+  // ==================== ACTIVITY LOG OPERATIONS ====================
+
+  async logActivity(user_id, activityData) {
+    try {
+      const { data, error } = await supabase
+        .from("user_activity_log")
+        .insert([
+          {
+            user_id,
+            activity_type: activityData.type,
+            activity_description: activityData.description,
+            points_change: activityData.pointsChange || 0,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error logging activity:", error);
+      throw error;
+    }
+  },
+
+  async getUserActivity(user_id, limit = 10) {
+    try {
+      const { data, error } = await supabase
+        .from("user_activity_log")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting user activity:", error);
+      return [];
+    }
+  },
+
+  // ==================== VIP TIERS OPERATIONS ====================
+
+  async getVIPTiers() {
+    try {
+      const { data, error } = await supabase
+        .from("vip_tiers")
+        .select("*")
+        .order("min_level", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting VIP tiers:", error);
+      return [];
+    }
+  },
+
+  async getUserTier(vipLevel) {
+    try {
+      const { data, error } = await supabase
+        .from("vip_tiers")
+        .select("*")
+        .lte("min_level", vipLevel)
+        .gte("max_level", vipLevel)
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error getting user tier:", error);
+      return null;
+    }
+  },
+
+  // ==================== DAILY REWARDS OPERATIONS ====================
+
+  async recordDailyReward(user_id, rewardData) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+
+      const { data, error } = await supabase
+        .from("daily_rewards")
+        .insert([
+          {
+            user_id,
+            claim_date: today,
+            points_earned: rewardData.points,
+            ton_earned: rewardData.ton || 0,
+            cati_earned: rewardData.cati || 0,
+            usdt_earned: rewardData.usdt || 0,
+            streak_day: rewardData.streakDay,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error recording daily reward:", error);
+      throw error;
+    }
+  },
+
+  async getDailyRewards(user_id, limit = 30) {
+    try {
+      const { data, error } = await supabase
+        .from("daily_rewards")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("claim_date", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting daily rewards:", error);
+      return [];
+    }
+  },
+
+  // ==================== CONVERSION HISTORY OPERATIONS ====================
+
+  async recordConversion(user_id, conversionData) {
+    try {
+      const { data, error } = await supabase
+        .from("conversion_history")
+        .insert([
+          {
+            user_id,
+            points_converted: conversionData.points,
+            currency: conversionData.currency,
+            amount_received: conversionData.amount,
+            conversion_rate: conversionData.rate,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("Error recording conversion:", error);
+      throw error;
+    }
+  },
+
+  async getConversionHistory(user_id, limit = 20) {
+    try {
+      const { data, error } = await supabase
+        .from("conversion_history")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("Error getting conversion history:", error);
+      return [];
+    }
+  },
+
   // ==================== HELPER FUNCTIONS ====================
 
   formatUser(dbUser) {
