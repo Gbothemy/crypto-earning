@@ -162,9 +162,10 @@ function LeaderboardPage({ user }) {
               )}
               {activeTab === 'earnings' && (
                 <p>
-                  💎 {player.ton?.toFixed(4) || 0} TON • 
-                  🐱 {player.cati?.toFixed(2) || 0} CATI • 
-                  💵 {player.usdt?.toFixed(2) || 0} USDT
+                  ◎ {player.sol?.toFixed(4) || 0} SOL • 
+                  Ξ {player.eth?.toFixed(4) || 0} ETH • 
+                  💵 {player.usdt?.toFixed(2) || 0} USDT •
+                  💵 {player.usdc?.toFixed(2) || 0} USDC
                 </p>
               )}
               {activeTab === 'streak' && (

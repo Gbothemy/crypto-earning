@@ -4,7 +4,7 @@ import './ConversionPage.css';
 
 function ConversionPage({ user, updateUser, addNotification }) {
   const [convertAmount, setConvertAmount] = useState('');
-  const [selectedCurrency, setSelectedCurrency] = useState('cati');
+  const [selectedCurrency, setSelectedCurrency] = useState('usdt');
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawAddress, setWithdrawAddress] = useState('');
   const [withdrawMemo, setWithdrawMemo] = useState('');
@@ -52,28 +52,36 @@ function ConversionPage({ user, updateUser, addNotification }) {
   };
 
   const CONVERSION_RATES = {
-    ton: vipTier?.conversion_rate || 10000,
-    cati: vipTier?.conversion_rate || 10000,
-    usdt: vipTier?.conversion_rate || 10000
+    sol: vipTier?.conversion_rate || 10000,
+    eth: vipTier?.conversion_rate || 10000,
+    usdt: vipTier?.conversion_rate || 10000,
+    usdc: vipTier?.conversion_rate || 10000
   };
 
   const MIN_WITHDRAW = {
-    ton: 0.1,
-    cati: 10,
-    usdt: 5
+    sol: 0.01,
+    eth: 0.001,
+    usdt: 10,
+    usdc: 10
   };
 
   const NETWORK_OPTIONS = {
-    ton: ['TON Mainnet'],
-    cati: ['TON Mainnet', 'BEP20 (BSC)', 'ERC20 (Ethereum)'],
-    usdt: ['TRC20 (Tron)', 'ERC20 (Ethereum)', 'BEP20 (BSC)', 'TON Mainnet']
+    sol: ['Solana Mainnet'],
+    eth: ['Ethereum Mainnet', 'Arbitrum', 'Optimism', 'Polygon', 'BSC (BEP20)'],
+    usdt: ['TRC20 (Tron)', 'ERC20 (Ethereum)', 'BEP20 (BSC)', 'Polygon', 'Solana', 'Arbitrum'],
+    usdc: ['Ethereum Mainnet', 'Solana (SPL)', 'Polygon', 'Arbitrum', 'Optimism', 'BSC (BEP20)']
   };
 
   const NETWORK_FEES = {
-    'TON Mainnet': 0.05,
-    'BEP20 (BSC)': 0.5,
-    'ERC20 (Ethereum)': 1.0,
-    'TRC20 (Tron)': 1.0
+    'Solana Mainnet': 0.000005,
+    'Solana (SPL)': 0.01,
+    'Ethereum Mainnet': 5.0,
+    'Arbitrum': 0.5,
+    'Optimism': 0.1,
+    'Polygon': 0.1,
+    'BSC (BEP20)': 0.8,
+    'TRC20 (Tron)': 1.0,
+    'ERC20 (Ethereum)': 5.0
   };
 
   const handleConvert = async (e) => {
@@ -250,13 +258,16 @@ function ConversionPage({ user, updateUser, addNotification }) {
     // Basic validation - can be enhanced
     if (!address || address.length < 10) return false;
 
-    if (network.includes('TON')) {
-      return address.startsWith('EQ') || address.startsWith('UQ');
+    if (network.includes('Solana') || network.includes('SPL')) {
+      // Solana addresses are Base58, 32-44 characters
+      return address.length >= 32 && address.length <= 44 && /^[1-9A-HJ-NP-Za-km-z]+$/.test(address);
     }
-    if (network.includes('BEP20') || network.includes('ERC20')) {
-      return address.startsWith('0x') && address.length === 42;
+    if (network.includes('Ethereum') || network.includes('BEP20') || network.includes('Arbitrum') || network.includes('Optimism') || network.includes('Polygon')) {
+      // EVM addresses start with 0x and are 42 characters
+      return address.startsWith('0x') && address.length === 42 && /^0x[a-fA-F0-9]{40}$/.test(address);
     }
     if (network.includes('TRC20')) {
+      // Tron addresses start with T and are 34 characters
       return address.startsWith('T') && address.length === 34;
     }
     return true;
@@ -317,18 +328,18 @@ function ConversionPage({ user, updateUser, addNotification }) {
             <span className="balance-value">{user.points.toLocaleString()}</span>
           </div>
         </div>
-        <div className="balance-card-conv ton">
-          <div className="balance-icon">💎</div>
+        <div className="balance-card-conv sol">
+          <div className="balance-icon">◎</div>
           <div className="balance-info">
-            <span className="balance-label">TON Balance</span>
-            <span className="balance-value">{user.balance.ton.toFixed(6)}</span>
+            <span className="balance-label">SOL Balance</span>
+            <span className="balance-value">{user.balance.sol.toFixed(6)}</span>
           </div>
         </div>
-        <div className="balance-card-conv cati">
-          <div className="balance-icon">🐱</div>
+        <div className="balance-card-conv eth">
+          <div className="balance-icon">Ξ</div>
           <div className="balance-info">
-            <span className="balance-label">CATI Balance</span>
-            <span className="balance-value">{user.balance.cati.toFixed(6)}</span>
+            <span className="balance-label">ETH Balance</span>
+            <span className="balance-value">{user.balance.eth.toFixed(6)}</span>
           </div>
         </div>
         <div className="balance-card-conv usdt">
@@ -336,6 +347,13 @@ function ConversionPage({ user, updateUser, addNotification }) {
           <div className="balance-info">
             <span className="balance-label">USDT Balance</span>
             <span className="balance-value">{user.balance.usdt.toFixed(6)}</span>
+          </div>
+        </div>
+        <div className="balance-card-conv usdc">
+          <div className="balance-icon">💵</div>
+          <div className="balance-info">
+            <span className="balance-label">USDC Balance</span>
+            <span className="balance-value">{user.balance.usdc.toFixed(6)}</span>
           </div>
         </div>
       </div>
@@ -384,9 +402,10 @@ function ConversionPage({ user, updateUser, addNotification }) {
                 onChange={(e) => setSelectedCurrency(e.target.value)}
                 className="currency-select"
               >
-                <option value="ton">💎 TON (Toncoin)</option>
-                <option value="cati">🐱 CATI (Catizen)</option>
-                <option value="usdt">💵 USDT (Tether)</option>
+                <option value="sol">◎ SOL (Solana)</option>
+                <option value="eth">Ξ ETH (Ethereum)</option>
+                <option value="usdt">💵 USDT (Tether) - Main</option>
+                <option value="usdc">💵 USDC (USD Coin)</option>
               </select>
             </div>
 
@@ -447,9 +466,10 @@ function ConversionPage({ user, updateUser, addNotification }) {
                 className="currency-select"
                 disabled={loading}
               >
-                <option value="ton">💎 TON (Toncoin)</option>
-                <option value="cati">🐱 CATI (Catizen)</option>
-                <option value="usdt">💵 USDT (Tether)</option>
+                <option value="sol">◎ SOL (Solana)</option>
+                <option value="eth">Ξ ETH (Ethereum)</option>
+                <option value="usdt">💵 USDT (Tether) - Main</option>
+                <option value="usdc">💵 USDC (USD Coin)</option>
               </select>
               <span className="form-hint">Available: {user.balance[selectedCurrency].toFixed(6)} {selectedCurrency.toUpperCase()}</span>
             </div>

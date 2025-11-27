@@ -9,14 +9,15 @@ Cipro is a gamified cryptocurrency earning platform where users can play various
 ## Features
 
 - 🎮 Multiple game types with difficulty levels
-- 💰 Earn TON, CATI, and USDT
+- 💰 Earn SOL, ETH, USDT, and USDC
 - 🏆 Achievement system
 - 📋 Daily, weekly, and monthly tasks
 - ⭐ VIP tier system with exclusive benefits
-- 💸 Professional withdrawal system
+- 💸 Professional withdrawal system (USDT main currency)
 - 📊 Leaderboards and rankings
 - 👥 Referral program
 - 🔔 Real-time notifications
+- 🌐 Multiple blockchain networks supported
 
 ## Tech Stack
 

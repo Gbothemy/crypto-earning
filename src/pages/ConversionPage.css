@@ -30,16 +30,20 @@
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.balance-card-conv.ton {
-  background: linear-gradient(135deg, #0088cc 0%, #005580 100%);
+.balance-card-conv.sol {
+  background: linear-gradient(135deg, #14F195 0%, #9945FF 100%);
 }
 
-.balance-card-conv.cati {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+.balance-card-conv.eth {
+  background: linear-gradient(135deg, #627EEA 0%, #454A75 100%);
 }
 
 .balance-card-conv.usdt {
   background: linear-gradient(135deg, #26a17b 0%, #1e8e6f 100%);
+}
+
+.balance-card-conv.usdc {
+  background: linear-gradient(135deg, #2775CA 0%, #1B5A9E 100%);
 }
 
 .balance-icon {
